@@ -10,7 +10,7 @@ public class Ball : MonoBehaviour
     public float maxSize = 3f;
 
     [Header("Rotation Settings")]
-    public Vector3 rotationAxis = new Vector3(0, 1, 0); // Y-axis rotation
+    public Vector3 rotationAxis = new Vector3(0, 1, 0); // Y-axis
     public float rotationSpeed = 90f; // Degrees per second
 
     private Rigidbody rb;
@@ -19,15 +19,15 @@ public class Ball : MonoBehaviour
     void Start()
     {
         rb = GetComponent<Rigidbody>();
-       // rb.isKinematic = true; // So physics doesn't interfere with rotation
         currentRotation = rb.rotation;
 
         if (sizeSlider != null)
         {
-            sizeSlider.minValue = minSize;
-            sizeSlider.maxValue = maxSize;
+            sizeSlider.minValue = -1f;  // Center is 0
+            sizeSlider.maxValue = 1f;
+            sizeSlider.value = 0f;      // Start at center
             sizeSlider.onValueChanged.AddListener(UpdateSize);
-            UpdateSize(sizeSlider.value); // Initialize size
+            UpdateSize(sizeSlider.value); // Initialize
         }
         else
         {
@@ -47,9 +47,16 @@ public class Ball : MonoBehaviour
         rb.MoveRotation(currentRotation);
     }
 
-    void UpdateSize(float newSize)
+    void UpdateSize(float sliderValue)
     {
-        Vector3 scale = Vector3.one * Mathf.Clamp(newSize, minSize, maxSize);
+        float newSize;
+
+        if (sliderValue >= 0)
+            newSize = Mathf.Lerp(1f, maxSize, sliderValue); // Increase
+        else
+            newSize = Mathf.Lerp(1f, minSize, -sliderValue); // Decrease
+
+        Vector3 scale = Vector3.one * newSize;
         transform.localScale = scale;
     }
 }

@@ -31,5 +31,6 @@ public enum Type
     small,
     medium,
     large,
-    transition // ✅ Added for mediator platforms
+    transition
 }
+
