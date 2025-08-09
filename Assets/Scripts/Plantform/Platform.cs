@@ -2,7 +2,7 @@
 
 public class Platform : MonoBehaviour
 {
-    private float speed;
+    public float speed;
     public Type myType;
 
     public void Init(float moveSpeed)
@@ -12,7 +12,8 @@ public class Platform : MonoBehaviour
 
     void Update()
     {
-        transform.Translate(Vector3.forward * -speed * Time.deltaTime, Space.World);
+      //  Debug.Log("calling in here");
+      //  transform.Translate(Vector3.forward * -speed * Time.deltaTime, Space.World);
     }
 
     void OnDrawGizmosSelected()
@@ -28,6 +29,7 @@ public class Platform : MonoBehaviour
 
 public enum Type
 {
+    Starting,
     small,
     medium,
     large,

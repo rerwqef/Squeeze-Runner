@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections;
 using UnityEngine;
 using NaughtyAttributes;
 
@@ -9,9 +10,14 @@ public class PlatformController : MonoBehaviour
     public static event Action<Platform> OnPlatformEnd;
 
     [Header("Platform Prefabs")]
+    public GameObject platformStartingprefab;
+
+    [Header("Platform Prefabs")]
     public GameObject platformSmallPrefab;
     public GameObject platformMediumPrefab;
     public GameObject platformLargePrefab;
+
+
 
     [Header("Transition Mediators")]
     public GameObject smallToMedium;
@@ -54,16 +60,16 @@ public class PlatformController : MonoBehaviour
 
     void Update()
     {
-        if (!hasStarted) return;
+        //if (!hasStarted) return;
 
         for (int i = activePlatforms.Count - 1; i >= 0; i--)
         {
             Platform p = activePlatforms[i];
             p.transform.Translate(Vector3.back * moveSpeed * Time.deltaTime, Space.World);
 
-            if (p.transform.position.z < -100f)
+            if (p.transform.position.z < -8f)
             {
-                ReturnToPool(p.gameObject);
+               HandlePlatformEnd(p);
             }
         }
     }
@@ -80,33 +86,41 @@ public class PlatformController : MonoBehaviour
         }
 
         // Initialize transition pools
-        InitTransitionPool("smallToMedium", smallToMedium);
-        InitTransitionPool("mediumToLarge", mediumToLarge);
-        InitTransitionPool("smallToLarge", smallToLarge);
+    
+     StartCoroutine(InitAllTransitionPoolsCoroutine());
+    
     }
 
-    void InitTransitionPool(string key, GameObject prefab)
+  IEnumerator InitAllTransitionPoolsCoroutine()
+{
+    yield return InitTransitionPoolCoroutine("smallToMedium", smallToMedium);
+    yield return InitTransitionPoolCoroutine("mediumToLarge", mediumToLarge);
+    yield return InitTransitionPoolCoroutine("smallToLarge", smallToLarge);
+}
+
+IEnumerator InitTransitionPoolCoroutine(string key, GameObject prefab)
+{
+    transitionPools[key] = new Queue<GameObject>();
+
+    for (int i = 0; i < 3; i++)
     {
-        transitionPools[key] = new Queue<GameObject>();
-        for (int i = 0; i < 3; i++)
-        {
-            GameObject obj = Instantiate(prefab);
-            obj.SetActive(false);
-            obj.transform.SetParent(spawnPoint);
-            transitionPools[key].Enqueue(obj);
-        }
+        GameObject obj = Instantiate(prefab);
+        obj.SetActive(false);
+        obj.transform.SetParent(spawnPoint);
+        transitionPools[key].Enqueue(obj);
+        yield return null; // Spread work over frames
     }
-
+}
     [Button("StartTheGame")]
     public void StartTheGame()
     {
         if (hasStarted) return;
         hasStarted = true;
 
-        foreach (var p in activePlatforms)
-        {
-            ReturnToPool(p.gameObject);
-        }
+       for (int i = activePlatforms.Count - 1; i >= 0; i--)
+{
+    ReturnToPool(activePlatforms[i].gameObject);
+}
         activePlatforms.Clear();
 
         for (int i = 0; i < maxActivePlatforms; i++)
@@ -139,7 +153,7 @@ public class PlatformController : MonoBehaviour
 
         if (previousPlatform == null)
         {
-            spawnPos = Vector3.zero;
+            spawnPos = gameObject.transform.position;
         }
         else
         {
@@ -177,12 +191,12 @@ public class PlatformController : MonoBehaviour
             spawnPos = previousPlatform.transform.position + new Vector3(0, 0, (prevLength + newLength) / 2f);
         }
 
-        spawnPos.y = 0;
+        spawnPos.y = gameObject.transform.position.y;
         newPlatformObj.transform.position = spawnPos;
         newPlatformObj.transform.SetParent(activePlatformsParent.transform);
         newPlatformObj.SetActive(true);
 
-        newPlatform.myType = newPlatform.myType;
+        //newPlatform.myType = newPlatform.myType;
         activePlatforms.Add(newPlatform);
         newPlatformObj.name = $"Platform_{activePlatforms.Count}_{newPlatform.myType}";
     }
@@ -190,7 +204,7 @@ public class PlatformController : MonoBehaviour
     GameObject GetPlatformToSpawn()
     {
         if (!hasStarted)
-            return Instantiate(platformSmallPrefab);
+            return Instantiate(platformStartingprefab);
 
         return GetFromPool();
     }
@@ -227,8 +241,13 @@ public class PlatformController : MonoBehaviour
 
     float GetPlatformLength(GameObject obj)
     {
+      
         if (obj == null) return 0;
-
+        if (obj.GetComponent<Platform>() != null && obj.GetComponent<Platform>().myType == Type.Starting)
+        {
+            return 7;
+           // Assuming speed is the length for this example
+        }
         Renderer rend = obj.GetComponentInChildren<Renderer>();
         if (rend != null) return rend.bounds.size.z;
 
