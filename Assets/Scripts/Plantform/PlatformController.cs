@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Collections;
 using UnityEngine;
 using NaughtyAttributes;
 
@@ -10,14 +9,10 @@ public class PlatformController : MonoBehaviour
     public static event Action<Platform> OnPlatformEnd;
 
     [Header("Platform Prefabs")]
-    public GameObject platformStartingprefab;
-
-    [Header("Platform Prefabs")]
+    public GameObject platformStartingPrefab;
     public GameObject platformSmallPrefab;
     public GameObject platformMediumPrefab;
     public GameObject platformLargePrefab;
-
-
 
     [Header("Transition Mediators")]
     public GameObject smallToMedium;
@@ -25,17 +20,15 @@ public class PlatformController : MonoBehaviour
     public GameObject smallToLarge;
 
     [Header("Settings")]
-    public int poolSize = 10;
     public float moveSpeed = 10f;
     public Transform spawnPoint;
     public GameObject activePlatformsParent;
     public int maxActivePlatforms = 10;
 
-    private Queue<GameObject> platformPool = new();
-    private Dictionary<string, Queue<GameObject>> transitionPools = new();
     public List<Platform> activePlatforms = new();
 
-    private bool hasStarted = false;
+    private Platform startingPlatform;   // showcase starting platform
+    public bool hasStarted = true;
 
     private void Awake()
     {
@@ -50,82 +43,78 @@ public class PlatformController : MonoBehaviour
 
     void Start()
     {
-        InitializePlatformPool();
-
-        for (int i = 0; i < 6; i++)
+        try
         {
-            SpawnPlatform(i == 0 ? null : activePlatforms[^1]);
+            // Spawn the permanent starting platform for showcase
+            GameObject startObj = Instantiate(platformStartingPrefab, transform.position, Quaternion.identity);
+            startingPlatform = startObj.GetComponent<Platform>();
+            if (startingPlatform == null)
+            {
+                Debug.LogError("Starting platform prefab missing Platform component!");
+            }
+            else
+            {
+                startObj.transform.SetParent(activePlatformsParent?.transform);
+                activePlatforms.Add(startingPlatform);
+            }
+
+            // Spawn a few showcase platforms after starting one
+            for (int i = 0; i < 5; i++)
+            {
+                SpawnPlatform(activePlatforms[^1]);
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError($"PlatformController.Start crashed: {ex.Message}");
         }
     }
 
     void Update()
     {
-        //if (!hasStarted) return;
-
-        for (int i = activePlatforms.Count - 1; i >= 0; i--)
+        try
         {
-            Platform p = activePlatforms[i];
-            p.transform.Translate(Vector3.back * moveSpeed * Time.deltaTime, Space.World);
-
-            if (p.transform.position.z < -8f)
+            for (int i = activePlatforms.Count - 1; i >= 0; i--)
             {
-               HandlePlatformEnd(p);
+                if (activePlatforms[i] == null) continue;
+                Platform p = activePlatforms[i];
+
+                // Move platforms
+                p.transform.Translate(Vector3.back * moveSpeed * Time.deltaTime, Space.World);
+
+                // Skip despawn check for starting platform
+                if (p == startingPlatform) continue;
+
+                // Despawn other platforms
+                if (p.transform.position.z < -8f)
+                {
+                    HandlePlatformEnd(p);
+                }
             }
         }
-    }
-
-    void InitializePlatformPool()
-    {
-        for (int i = 0; i < poolSize; i++)
+        catch (Exception ex)
         {
-            GameObject prefab = GetRandomPlatformPrefab();
-            GameObject obj = Instantiate(prefab);
-            obj.SetActive(false);
-            obj.transform.SetParent(spawnPoint);
-            platformPool.Enqueue(obj);
+            Debug.LogError($"PlatformController.Update crashed: {ex.Message}");
         }
-
-        // Initialize transition pools
-    
-     StartCoroutine(InitAllTransitionPoolsCoroutine());
-    
     }
 
-  IEnumerator InitAllTransitionPoolsCoroutine()
-{
-    yield return InitTransitionPoolCoroutine("smallToMedium", smallToMedium);
-    yield return InitTransitionPoolCoroutine("mediumToLarge", mediumToLarge);
-    yield return InitTransitionPoolCoroutine("smallToLarge", smallToLarge);
-}
-
-IEnumerator InitTransitionPoolCoroutine(string key, GameObject prefab)
-{
-    transitionPools[key] = new Queue<GameObject>();
-
-    for (int i = 0; i < 3; i++)
-    {
-        GameObject obj = Instantiate(prefab);
-        obj.SetActive(false);
-        obj.transform.SetParent(spawnPoint);
-        transitionPools[key].Enqueue(obj);
-        yield return null; // Spread work over frames
-    }
-}
     [Button("StartTheGame")]
     public void StartTheGame()
     {
-        if (hasStarted) return;
-        hasStarted = true;
-
-       for (int i = activePlatforms.Count - 1; i >= 0; i--)
-{
-    ReturnToPool(activePlatforms[i].gameObject);
-}
-        activePlatforms.Clear();
-
-        for (int i = 0; i < maxActivePlatforms; i++)
+        try
         {
-            SpawnPlatform(i == 0 ? null : activePlatforms[^1]);
+            if (hasStarted) return;
+            hasStarted = true;
+
+            // Spawn new platforms to reach max count
+            for (int i = activePlatforms.Count; i < maxActivePlatforms; i++)
+            {
+                SpawnPlatform(activePlatforms[^1]);
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError($"StartTheGame crashed: {ex.Message}");
         }
     }
 
@@ -133,98 +122,100 @@ IEnumerator InitTransitionPoolCoroutine(string key, GameObject prefab)
     {
         if (endedPlatform == null) return;
 
+        // never despawn starting platform
+        if (endedPlatform == startingPlatform) return;
+
         if (activePlatforms.Contains(endedPlatform))
         {
-            ReturnToPool(endedPlatform.gameObject);
+            activePlatforms.Remove(endedPlatform);
+            Destroy(endedPlatform.gameObject);
         }
 
         if (activePlatforms.Count < maxActivePlatforms)
-        {
             SpawnPlatform(activePlatforms.Count > 0 ? activePlatforms[^1] : null);
-        }
     }
-
+    public Type previousType;
+    public Type newType;
     void SpawnPlatform(Platform previousPlatform)
     {
-        GameObject newPlatformObj = GetPlatformToSpawn();
-        Platform newPlatform = newPlatformObj.GetComponent<Platform>();
-        float newLength = GetPlatformLength(newPlatformObj);
-        Vector3 spawnPos;
-
-        if (previousPlatform == null)
+        try
         {
-            spawnPos = gameObject.transform.position;
-        }
-        else
-        {
-            float prevLength = GetPlatformLength(previousPlatform.gameObject);
-            Type prevType = previousPlatform.myType;
-            Type newType = newPlatform.myType;
+            GameObject newPlatformObj = GetPlatformToSpawn();
+            if (newPlatformObj == null) return;
 
-            Vector3 prevPos = previousPlatform.transform.position;
-
-            if (hasStarted && prevType != newType && prevType != Type.transition && newType != Type.transition)
+            Platform newPlatform = newPlatformObj.GetComponent<Platform>();
+            if (newPlatform == null)
             {
-                GameObject mediator = GetMediatorPlatform(prevType, newType, out bool flip, out string key);
-                if (mediator != null)
-                {
-                    GameObject mediatorObj = GetFromTransitionPool(key, mediator);
-                    float mediatorLength = GetPlatformLength(mediatorObj);
-                    Vector3 mediatorPos = prevPos + new Vector3(0, 0, (prevLength + mediatorLength) / 2f);
-
-                    mediatorObj.transform.position = mediatorPos;
-                    mediatorObj.transform.rotation = flip
-                        ? Quaternion.Euler(90, 0, -90)
-                        : Quaternion.Euler(90, 180f, -90);
-                    mediatorObj.transform.SetParent(activePlatformsParent.transform);
-                    mediatorObj.SetActive(true);
-
-                    Platform mediatorPlatform = mediatorObj.GetComponent<Platform>();
-                    mediatorPlatform.myType = Type.transition;
-                    activePlatforms.Add(mediatorPlatform);
-
-                    previousPlatform = mediatorPlatform;
-                    prevLength = mediatorLength;
-                }
+                Debug.LogError("SpawnPlatform: Missing Platform component!");
+                return;
             }
 
-            spawnPos = previousPlatform.transform.position + new Vector3(0, 0, (prevLength + newLength) / 2f);
+            float newLength = GetPlatformLength(newPlatformObj);
+            Vector3 spawnPos;
+
+            if (previousPlatform == null)
+            {
+                spawnPos = transform.position;
+            }
+            else
+            {
+                float prevLength = GetPlatformLength(previousPlatform.gameObject);
+                 previousType = previousPlatform.myType;
+                 newType = newPlatform.myType;
+                Vector3 prevPos = previousPlatform.transform.position;
+
+                // Insert mediator if types mismatch
+                if (hasStarted && previousType!=null && newType!=null && previousType != newType && previousType != Type.transition && newType != Type.transition)
+                {
+                    GameObject mediatorPrefab = GetMediatorPlatform(previousType, newType, out bool flip);
+                    if (mediatorPrefab != null)
+                    {
+                        Debug.Log($"mediyatorprefab is not null"+mediatorPrefab.name);
+                     //   GameObject mediatorObj = Instantiate(mediatorPrefab);
+                      //  if (mediatorObj == null) { Debug.Log($"mediatorObj is null"); }
+                       // float mediatorLength = GetPlatformLength(mediatorObj);
+                          //   Debug.Log($"mediatorLength is {mediatorLength}");
+                        //     Vector3 mediatorPos = prevPos + new Vector3(0, 0, (prevLength + mediatorLength) / 2f);
+
+                        //     mediatorObj.transform.position = mediatorPos;
+                        //     mediatorObj.transform.rotation = flip
+                        //         ? Quaternion.Euler(90, 0, -90)
+                        //         : Quaternion.Euler(90, 180f, -90);
+                        //     mediatorObj.transform.SetParent(activePlatformsParent?.transform);
+
+                        //     Platform mediatorPlatform = mediatorObj.GetComponent<Platform>();
+                        //     if (mediatorPlatform != null)
+                        //     {
+                        //         mediatorPlatform.myType = Type.transition;
+                        //         activePlatforms.Add(mediatorPlatform);
+                        //         previousPlatform = mediatorPlatform;
+                        //         prevLength = mediatorLength;
+                        //     }
+                    }
+                }
+
+                spawnPos = previousPlatform.transform.position + new Vector3(0, 0, (prevLength + newLength) / 2f);
+            }
+
+            spawnPos.y = transform.position.y;
+            newPlatformObj.transform.position = spawnPos;
+            newPlatformObj.transform.SetParent(activePlatformsParent?.transform);
+
+            activePlatforms.Add(newPlatform);
+            newPlatformObj.name = $"Platform_{activePlatforms.Count}_{newPlatform.myType}";
         }
-
-        spawnPos.y = gameObject.transform.position.y;
-        newPlatformObj.transform.position = spawnPos;
-        newPlatformObj.transform.SetParent(activePlatformsParent.transform);
-        newPlatformObj.SetActive(true);
-
-        //newPlatform.myType = newPlatform.myType;
-        activePlatforms.Add(newPlatform);
-        newPlatformObj.name = $"Platform_{activePlatforms.Count}_{newPlatform.myType}";
+        catch (Exception ex)
+        {
+            Debug.LogError($"SpawnPlatform crashed: {ex.Message}");
+        }
     }
 
     GameObject GetPlatformToSpawn()
     {
-        if (!hasStarted)
-            return Instantiate(platformStartingprefab);
-
-        return GetFromPool();
-    }
-
-    GameObject GetFromPool()
-    {
-        if (platformPool.Count > 0)
-            return platformPool.Dequeue();
+        if (!hasStarted && activePlatforms.Count == 0)
+            return Instantiate(platformStartingPrefab);
 
         return Instantiate(GetRandomPlatformPrefab());
-    }
-
-    GameObject GetFromTransitionPool(string key, GameObject prefab)
-    {
-        if (transitionPools.ContainsKey(key) && transitionPools[key].Count > 0)
-        {
-            return transitionPools[key].Dequeue();
-        }
-
-        return Instantiate(prefab);
     }
 
     GameObject GetRandomPlatformPrefab()
@@ -241,13 +232,10 @@ IEnumerator InitTransitionPoolCoroutine(string key, GameObject prefab)
 
     float GetPlatformLength(GameObject obj)
     {
-      
         if (obj == null) return 0;
-        if (obj.GetComponent<Platform>() != null && obj.GetComponent<Platform>().myType == Type.Starting)
-        {
-            return 7;
-           // Assuming speed is the length for this example
-        }
+        Platform p = obj.GetComponent<Platform>();
+        if (p != null && p.myType == Type.Starting) return 7;
+
         Renderer rend = obj.GetComponentInChildren<Renderer>();
         if (rend != null) return rend.bounds.size.z;
 
@@ -257,73 +245,29 @@ IEnumerator InitTransitionPoolCoroutine(string key, GameObject prefab)
         return 16f; // fallback
     }
 
-    GameObject GetMediatorPlatform(Type from, Type to, out bool shouldFlip, out string poolKey)
+    GameObject GetMediatorPlatform(Type from, Type to, out bool shouldFlip)
     {
         shouldFlip = false;
-        poolKey = "";
 
         if ((from == Type.small && to == Type.medium) || (from == Type.medium && to == Type.small))
         {
             shouldFlip = from == Type.medium;
-            poolKey = "smallToMedium";
             return smallToMedium;
         }
 
         if ((from == Type.medium && to == Type.large) || (from == Type.large && to == Type.medium))
         {
             shouldFlip = from == Type.large;
-            poolKey = "mediumToLarge";
             return mediumToLarge;
         }
 
         if ((from == Type.small && to == Type.large) || (from == Type.large && to == Type.small))
         {
             shouldFlip = from == Type.large;
-            poolKey = "smallToLarge";
             return smallToLarge;
         }
 
         return null;
-    }
-
-    public void ReturnToPool(GameObject platformObj)
-    {
-        if (platformObj == null || platformPool.Contains(platformObj)) return;
-
-        platformObj.SetActive(false);
-        platformObj.transform.SetParent(spawnPoint);
-
-        Platform platform = platformObj.GetComponent<Platform>();
-        if (platform != null)
-        {
-            if (activePlatforms.Contains(platform))
-                activePlatforms.Remove(platform);
-
-            if (platform.myType == Type.transition)
-            {
-                string key = GetTransitionKey(platformObj.name);
-                if (transitionPools.ContainsKey(key))
-                {
-                    transitionPools[key].Enqueue(platformObj);
-                }
-                else
-                {
-                    Destroy(platformObj); // fallback
-                }
-            }
-            else
-            {
-                platformPool.Enqueue(platformObj);
-            }
-        }
-    }
-
-    string GetTransitionKey(string name)
-    {
-        if (name.Contains("smallToMedium")) return "smallToMedium";
-        if (name.Contains("mediumToLarge")) return "mediumToLarge";
-        if (name.Contains("smallToLarge")) return "smallToLarge";
-        return "";
     }
 
     public static void NotifyPlatformEnd(Platform platform)

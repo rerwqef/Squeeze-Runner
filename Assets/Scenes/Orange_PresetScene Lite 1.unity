@@ -148,19 +148,21 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 46eadbbb94889b047806032901291c89, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  platformStartingprefab: {fileID: 1114755136609544487, guid: 7437d30d889a03249abded896ed99ba0, type: 3}
+  platformStartingPrefab: {fileID: 1114755136609544487, guid: 7437d30d889a03249abded896ed99ba0, type: 3}
   platformSmallPrefab: {fileID: 455923195254435574, guid: 6765ec805945e354e9fe7cbc2cd54fbf, type: 3}
   platformMediumPrefab: {fileID: 6803992716173050178, guid: ca2905545d2f7684fb80ebe6b339c783, type: 3}
   platformLargePrefab: {fileID: 231702340726393593, guid: 01481c367c2fd2a4d9059d0d08420fe7, type: 3}
   smallToMedium: {fileID: 7956646509440259639, guid: 0b79b0a2303a01744aef6129fc0796c7, type: 3}
   mediumToLarge: {fileID: 3666865528250968672, guid: c792d93fcc6d35746b1b615c6a2bc32b, type: 3}
   smallToLarge: {fileID: 2807283121944915936, guid: 5bca34fa084532949bfac427d51e73ce, type: 3}
-  poolSize: 10
   moveSpeed: 10
   spawnPoint: {fileID: 164388849}
   activePlatformsParent: {fileID: 1971861916}
   maxActivePlatforms: 10
   activePlatforms: []
+  hasStarted: 0
+  previousType: 0
+  newType: 0
 --- !u!4 &164388849
 Transform:
   m_ObjectHideFlags: 0
